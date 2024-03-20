@@ -68,8 +68,9 @@ public class LoopHandler {
 					if(GraphAlgorithms.findDominance(domTree, child, Analyzer.tMonitor).contains(vertex)) {
 						System.out.println("Found back edge: " + vertex + " -> " + child);
 						// Child is also a dominator; loop detected
-						if (CFG.findEdge(child, vertex) != null) {
-							backEdges.add(CFG.findEdge(child, vertex));
+						if (CFG.findEdge(vertex, child) != null) {
+							System.out.println("CONFIRMED back edge: " + vertex + " -> " + child);
+							backEdges.add(CFG.findEdge(vertex, child));
 						}
 					}
 				} catch (CancelledException e) {
@@ -89,50 +90,68 @@ public class LoopHandler {
 		List<GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>>> loopBodyCFGs = new ArrayList<>();
 		
 		for(GEdge<PcodeBlockBasic> backEdge : backEdges) {
-			List<PcodeBlockBasic> loopBody = new ArrayList<>();
+			Stack<PcodeBlockBasic> loopBody = new Stack<>();
 			List<PcodeBlockBasic> visited = new ArrayList<>();
 			Stack<PcodeBlockBasic> traversalStack = new Stack<>();
-			PcodeBlockBasic source = backEdge.getStart();
-			PcodeBlockBasic header = backEdge.getEnd(); // loop header
+			PcodeBlockBasic header = backEdge.getStart();
+			PcodeBlockBasic source = backEdge.getEnd(); // loop header
 			
 			traversalStack.push(header);
 			
 			while(!traversalStack.empty()) {
 				PcodeBlockBasic currentNode = traversalStack.pop();
+				//System.out.println("Current node: " + currentNode);
 				if(visited.contains(currentNode)) {
                     continue;
                 }
 				
 				visited.add(currentNode);
+				loopBody.push(currentNode);
 				
-				try {
-					if (!GraphAlgorithms.findDominance(domTree, header, Analyzer.tMonitor).contains(currentNode)) {
-						// currentNode is not dominated by header
-						loopBody.add(currentNode);
-						
-						for (PcodeBlockBasic child : CFG.getSuccessors(currentNode)) {
-							traversalStack.push(child);
-						}
+				for (PcodeBlockBasic pred : domTree.getPredecessors(currentNode)) {
+					if (!visited.contains(pred) && currentNode != source) {
+						traversalStack.push(pred);
 					}
-				} catch (CancelledException e) {
-					e.printStackTrace();
-					throw new Error("Could not find dominators of vertex " + currentNode);
 				}
 				
+//				try {
+//					if (!GraphAlgorithms.findDominance(domTree, source, Analyzer.tMonitor).contains(currentNode)) {
+//						// currentNode is not dominated by header
+//						loopBody.add(currentNode);
+//						
+//						for (PcodeBlockBasic child : CFG.getPredecessors(currentNode)) {
+//							traversalStack.push(child);
+//						}
+//					}
+//				} catch (CancelledException e) {
+//					e.printStackTrace();
+//					throw new Error("Could not find dominators of vertex " + currentNode);
+//				}
+				
 			}
+			
+			
 			
 			// Construct CFG of loop body
 			GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG = GraphFactory.createDirectedGraph();
 			System.out.println("Loop body:");
-			for (PcodeBlockBasic vertex : loopBody) {
+			while(!loopBody.isEmpty()) {
+				PcodeBlockBasic vertex = loopBody.pop();
 				System.out.println(vertex);
 				loopBodyCFG.addVertex(vertex);
-				for (int i = 0; i < vertex.getOutSize(); i++) {
-					if (loopBody.contains(vertex.getOut(i))) {
-						loopBodyCFG.addEdge(new DefaultGEdge(vertex, vertex.getOut(i)));
-					}
+				if (!loopBody.isEmpty()) {
+					loopBodyCFG.addEdge(new DefaultGEdge(vertex, loopBody.peek()));
 				}
 			}
+//			for (PcodeBlockBasic vertex : loopBody) {
+//				System.out.println(vertex);
+//				loopBodyCFG.addVertex(vertex);
+//				for (int i = 0; i < vertex.getOutSize(); i++) {
+//					if (loopBody.contains(vertex.getOut(i))) {
+//						loopBodyCFG.addEdge(new DefaultGEdge(vertex, vertex.getOut(i)));
+//					}
+//				}
+//			}
 			
 			loopBodyCFGs.add(loopBodyCFG);
 		}

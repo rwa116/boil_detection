@@ -145,7 +145,7 @@ public class Analyzer extends GhidraScript{
 //				System.out.println(" ");
 //				for (PcodeBlockBasic v : loopBodyCFG.getVertices()) {
 //					System.out.println(" ");
-//					System.out.println(v);
+//					System.out.println(v);println
 //					Iterator<PcodeOp> it = v.getIterator();
 //					while (it.hasNext()) {
 //						System.out.println(it.next());
