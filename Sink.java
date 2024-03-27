@@ -13,16 +13,11 @@ public class Sink {
 	public String name;
 	public Function functionRef;
 	public List<Parameter> arguments;
-	public List<Source> sources = new ArrayList<Source>();
 	
 	public Sink(String name, Function function, Parameter[] arguments) {
 		this.name = name;
 		this.functionRef = function;
 		this.arguments = Arrays.asList(arguments);
-	}
-	
-	public void SetSources(List<Source> newSources) {
-		this.sources.addAll(newSources);
 	}
 	
 	public void CalculateOverflow() {

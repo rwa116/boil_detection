@@ -113,23 +113,7 @@ public class LoopHandler {
 						traversalStack.push(pred);
 					}
 				}
-				
-//				try {
-//					if (!GraphAlgorithms.findDominance(domTree, source, Analyzer.tMonitor).contains(currentNode)) {
-//						// currentNode is not dominated by header
-//						loopBody.add(currentNode);
-//						
-//						for (PcodeBlockBasic child : CFG.getPredecessors(currentNode)) {
-//							traversalStack.push(child);
-//						}
-//					}
-//				} catch (CancelledException e) {
-//					e.printStackTrace();
-//					throw new Error("Could not find dominators of vertex " + currentNode);
-//				}
-				
 			}
-			
 			
 			
 			// Construct CFG of loop body
@@ -143,19 +127,11 @@ public class LoopHandler {
 					loopBodyCFG.addEdge(new DefaultGEdge(vertex, loopBody.peek()));
 				}
 			}
-//			for (PcodeBlockBasic vertex : loopBody) {
-//				System.out.println(vertex);
-//				loopBodyCFG.addVertex(vertex);
-//				for (int i = 0; i < vertex.getOutSize(); i++) {
-//					if (loopBody.contains(vertex.getOut(i))) {
-//						loopBodyCFG.addEdge(new DefaultGEdge(vertex, vertex.getOut(i)));
-//					}
-//				}
-//			}
 			
 			loopBodyCFGs.add(loopBodyCFG);
 		}
 		
 		return loopBodyCFGs;
 	}
+
 }
