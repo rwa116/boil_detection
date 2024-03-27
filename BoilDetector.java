@@ -63,11 +63,12 @@ public class BoilDetector {
 			Set<Instruction> visited = new HashSet<Instruction>();
 			PcodeOp store = stores.pop();
 			System.out.println("Store: " + store + " memory offset: " + store.getInput(1));
+			pChain.add(store);
 			if (isSelfDependent(store.getInput(1), depChain, pChain, instructions)) {
 				System.out.println("Dep chain: " + depChain);
 				System.out.println("Dep pChain: ");
 				for (PcodeOp p : pChain) {
-					System.out.println(p.getOutput().getAddress() + ": " +  p);
+					System.out.println(": " +  p);
 				}
 				return true;
 			}
@@ -80,20 +81,6 @@ public class BoilDetector {
 		if (depChain.contains(v)) {
 			return true;
 		}
-		
-//		depChain.add(v);
-//		PcodeOp def = v.getDef();
-//		if(def != null) {
-//			for(Varnode input : def.getInputs(
-//					v.get)) {
-//				if (isSelfDependent(input, depChain, loopBodyCFG)) {
-//					System.out.println("Self dependent: " + v + " at address " + v.getAddress());
-//					return true;
-//				}
-//			}
-//			
-//		}
-//		depChain.remove(v);
 		
 		depChain.add(v);
 		PcodeOp def = v.getDef();
