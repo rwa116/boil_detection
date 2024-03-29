@@ -37,18 +37,22 @@ public class FunctionHandler {
 		HashSet<Sink> discoveredFunctions = new HashSet<Sink>();
 		HashSet<String> duplicates = new HashSet<String>();
 		FunctionIterator functions = Analyzer.Listing.getFunctions(true);
+		int numFunctions = 0;
 		
 		while(functions.hasNext()) {
 			Function function = functions.next();
-			Set<Function> calledFunctions = function.getCalledFunctions(Analyzer.tMonitor);
-			for(Function cFunc : calledFunctions)
-			if(knownSinks.contains(cFunc.getName()) && !duplicates.contains(cFunc.getName())) {
-				duplicates.add(cFunc.getName());
+//			Set<Function> calledFunctions = function.getCalledFunctions(Analyzer.tMonitor);
+//			for(Function cFunc : calledFunctions)
+//			if(knownSinks.contains(cFunc.getName()) && !duplicates.contains(cFunc.getName())) {
+			if(!duplicates.contains(function.getName())) {
+				duplicates.add(function.getName());
 				
-				discoveredFunctions.add(new Sink(cFunc.getName(), cFunc, cFunc.getParameters()));
+				discoveredFunctions.add(new Sink(function.getName(), function, function.getParameters()));
 			}
+			numFunctions++;
 		}
 		
+		System.out.println("Number of functions: " + numFunctions);
 		return discoveredFunctions;
 	}
 	

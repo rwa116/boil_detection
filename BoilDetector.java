@@ -47,16 +47,19 @@ public class BoilDetector {
 	public Boolean isBoil(GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG) {
 		List<PcodeOp> instructions = new ArrayList<PcodeOp>();
 		Stack<PcodeOp> stores = new Stack<PcodeOp>();
+		int storeCount = 0;
 		for (PcodeBlockBasic block : loopBodyCFG.getVertices()) {
 			Iterator<PcodeOp> opIt = block.getIterator();
 			while (opIt.hasNext()) {
 				PcodeOp op = opIt.next();
 				if (op.getOpcode() == PcodeOp.STORE) {
 					stores.push(op);
+					storeCount++;
 				}
 				instructions.add(op);
 			}
 		}
+		System.out.println("Store count: " + storeCount);
 		while (!stores.isEmpty()) {
 			List<Varnode> depChain = new ArrayList<Varnode>();
 			List<PcodeOp> pChain = new ArrayList<PcodeOp>();
@@ -72,32 +75,59 @@ public class BoilDetector {
 				}
 				return true;
 			}
+			depChain.clear();
+			pChain.clear();
 			
 		}
 		return false;
 	}
 	
 	private Boolean isSelfDependent(Varnode v, List<Varnode> depChain, List<PcodeOp> pChain, List<PcodeOp> instructions) {
-		if (depChain.contains(v)) {
-			return true;
+		System.out.println("Checking varnode: " + v + " depChain: " + depChain);
+		for (Varnode dv : depChain) {
+			if (dv.getSpace() == v.getSpace() && dv.getOffset() == v.getOffset()) {
+				System.out.println("Self dependent: " + v);
+				return true;
+			}
 		}
+		
+//		if (depChain.contains(v)) {
+//			System.out.println("Self dependent: " + v);
+//			return true;
+//		}
 		
 		depChain.add(v);
 		PcodeOp def = v.getDef();
 		pChain.add(def);
 	    if(def != null && instructions.contains(def)) {
+	    	Set<Varnode> seen = new HashSet<>();
 			switch(def.getOpcode()) {
 			case PcodeOp.STORE:
 				if (isSelfDependent(def.getInput(1), depChain, pChain, instructions)) {
 					return true;
 				}
 				break;
+			case PcodeOp.COPY:
+			case PcodeOp.MULTIEQUAL:
+				depChain.remove(v);
+				for (Varnode input : def.getInputs()) {
+					if(!seen.contains(input)) {
+						if (isSelfDependent(input, depChain, pChain, instructions)) {
+							return true;
+						}
+					}
+					seen.add(input);
+				}
+				break;
 			default:
-				for(Varnode input : def.getInputs()) {
-                    if (isSelfDependent(input, depChain, pChain, instructions)) {
-                        return true;
-                    }
-                }
+				for (Varnode input : def.getInputs()) {
+					if(!seen.contains(input)) {
+						if (isSelfDependent(input, depChain, pChain, instructions)) {
+							return true;
+						}
+					}
+					seen.add(input);
+				}
 				break;
             }
         

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileOptions;
@@ -84,6 +85,9 @@ public class Analyzer extends GhidraScript{
 		
 		System.out.println("Hello!");
 		
+		int boils = 0;
+		Set<Function> bops = new HashSet<Function>();
+		
 		for(Sink dis : discoveredSinks) {
 			System.out.println("Discovered sink: " + dis.name);
 			
@@ -143,10 +147,11 @@ public class Analyzer extends GhidraScript{
 					potentialBoilCFGs.add(loopBodyCFG);
 				}
 			}
-			
 			for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> potentialBoilCFG : potentialBoilCFGs) {
 				if (boilDetector.isBoil(potentialBoilCFG)) {
 					System.out.println("Boil detected");
+					boils++;
+					bops.add(currentFunction);
 				}
 			}
 			
@@ -194,6 +199,11 @@ public class Analyzer extends GhidraScript{
 //				System.out.println(" ");
 //			}
 //			break;
+		}
+		
+		System.out.println("Total boils detected: " + boils);
+		for (Function f : bops) {
+			System.out.println("Bop: " + f.getName());
 		}
 		
 	}
