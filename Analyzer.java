@@ -37,10 +37,6 @@ import ghidra.program.model.pcode.PcodeOpAST;
 public class Analyzer extends GhidraScript{
 	public DecompInterface decomp;
 	
-	public static HashSet<Function> FunctionsUsed;
-	public static Boolean SecondPass = false;
-	public static Boolean OutputFile = false;
-	public static Integer FindSourceLimit = 5;
 	public static Listing Listing;
 	public static AddressFactory AddressFactory;
 	public static ReferenceManager ReferenceManager;
@@ -85,7 +81,8 @@ public class Analyzer extends GhidraScript{
 		
 		System.out.println("Hello!");
 		
-		int boils = 0;
+		int numBoils = 0;
+		int numLoops = 0;
 		Set<Function> bops = new HashSet<Function>();
 		
 		for(Sink dis : discoveredSinks) {
@@ -103,6 +100,7 @@ public class Analyzer extends GhidraScript{
 			List<GEdge<PcodeBlockBasic>> backEdges = loopHandler.identifyBackEdges(CFG, domTree);
 			
 			List<GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>>> loopBodyCFGs = loopHandler.findLoopBodyCFGs(CFG, domTree, backEdges);
+			numLoops += loopBodyCFGs.size();
 			
 //			for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG : loopBodyCFGs) {
 //				for (PcodeBlockBasic v : loopBodyCFG.getVertices()) {
@@ -150,7 +148,7 @@ public class Analyzer extends GhidraScript{
 			for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> potentialBoilCFG : potentialBoilCFGs) {
 				if (boilDetector.isBoil(potentialBoilCFG)) {
 					System.out.println("Boil detected");
-					boils++;
+					numBoils++;
 					bops.add(currentFunction);
 				}
 			}
@@ -201,12 +199,12 @@ public class Analyzer extends GhidraScript{
 //			break;
 		}
 		
-		System.out.println("Total boils detected: " + boils);
+		System.out.println("Total loops detected: " + numLoops);
+		System.out.println("Total boils detected: " + numBoils);
 		for (Function f : bops) {
 			System.out.println("Bop: " + f.getName());
 		}
 		
 	}
-
 
 }

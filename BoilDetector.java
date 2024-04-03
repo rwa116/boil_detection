@@ -106,8 +106,12 @@ public class BoilDetector {
 				if (isSelfDependent(def.getInput(1), depChain, pChain, instructions)) {
 					return true;
 				}
+				if (isSelfDependent(def.getInput(0), depChain, pChain, instructions)) {
+					return true;
+				}
 				break;
-			case PcodeOp.COPY:
+			case PcodeOp.INDIRECT:
+			//case PcodeOp.COPY:
 			case PcodeOp.MULTIEQUAL:
 				depChain.remove(v);
 				for (Varnode input : def.getInputs()) {

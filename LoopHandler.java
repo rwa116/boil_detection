@@ -30,12 +30,10 @@ public class LoopHandler {
 		GDirectedGraph<PcodeBlockBasic, GEdge<PcodeBlockBasic>> domTree;
 		try {
 			domTree = GraphAlgorithms.findDominanceTree(flowGraph, Analyzer.tMonitor);
-		} catch (CancelledException e) {
-			// TODO Auto-generated catch block
+		} catch (Exception e) {
 			e.printStackTrace();
 			throw new Error("Could not construct dominance tree");
 		}
-		
 		return domTree;
 	}
 	
@@ -45,7 +43,10 @@ public class LoopHandler {
 		for(PcodeBlockBasic block : basicBlocks) {
 			flowGraph.addVertex(block);
 			for(int i = 0; i < block.getOutSize(); i++) {
-				flowGraph.addEdge(new DefaultGEdge(block, block.getOut(i)));
+				if (block.getOutSize() == 1 && block.equals(block.getOut(i))) { // Ignore infinite loops, this causes issues with dominance trees
+					continue;
+				}
+				flowGraph.addEdge(new DefaultGEdge<PcodeBlockBasic>(block, (PcodeBlockBasic) block.getOut(i)));
 			}
 		}
 		
@@ -75,7 +76,7 @@ public class LoopHandler {
 					}
 				} catch (CancelledException e) {
 					e.printStackTrace();
-					throw new Error("Could not find dominators of vertex " + vertex);
+					throw new Error("Could not find dominators of vertex: " + vertex);
 				}
 			}
 		}
@@ -94,13 +95,12 @@ public class LoopHandler {
 			List<PcodeBlockBasic> visited = new ArrayList<>();
 			Stack<PcodeBlockBasic> traversalStack = new Stack<>();
 			PcodeBlockBasic header = backEdge.getStart();
-			PcodeBlockBasic source = backEdge.getEnd(); // loop header
+			PcodeBlockBasic source = backEdge.getEnd();
 			
 			traversalStack.push(header);
 			
 			while(!traversalStack.empty()) {
 				PcodeBlockBasic currentNode = traversalStack.pop();
-				//System.out.println("Current node: " + currentNode);
 				if(visited.contains(currentNode)) {
                     continue;
                 }
@@ -124,7 +124,7 @@ public class LoopHandler {
 				System.out.println(vertex);
 				loopBodyCFG.addVertex(vertex);
 				if (!loopBody.isEmpty()) {
-					loopBodyCFG.addEdge(new DefaultGEdge(vertex, loopBody.peek()));
+					loopBodyCFG.addEdge(new DefaultGEdge<PcodeBlockBasic>(vertex, loopBody.peek()));
 				}
 			}
 			
