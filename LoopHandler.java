@@ -1,10 +1,7 @@
 package boil_detection_project;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.Stack;
 
 import ghidra.graph.DefaultGEdge;
@@ -12,24 +9,25 @@ import ghidra.graph.GDirectedGraph;
 import ghidra.graph.GEdge;
 import ghidra.graph.GraphFactory;
 import ghidra.graph.GraphAlgorithms;
-import ghidra.program.model.block.graph.CodeBlockVertex;
-import ghidra.program.model.block.graph.CodeBlockEdge;
-import ghidra.program.model.listing.Function;
-import ghidra.program.model.listing.FunctionIterator;
-import ghidra.program.model.listing.Parameter;
 import ghidra.program.model.pcode.HighFunction;
 import ghidra.program.model.pcode.PcodeBlockBasic;
-import ghidra.program.model.symbol.Reference;
-import ghidra.program.model.symbol.ReferenceIterator;
 import ghidra.util.exception.CancelledException;
+import ghidra.util.task.TaskMonitor;
 
 public class LoopHandler {
+	private TaskMonitor taskMonitor;
+	private boolean VERBOSE_PRINT = false;
+	
+	public LoopHandler(TaskMonitor taskMonitor, boolean verbose) {
+		this.taskMonitor = taskMonitor;
+		this.VERBOSE_PRINT = verbose;
+	}
 	
 	public GDirectedGraph<PcodeBlockBasic, GEdge<PcodeBlockBasic>> generateDominatorTree(GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> flowGraph) {
 		
 		GDirectedGraph<PcodeBlockBasic, GEdge<PcodeBlockBasic>> domTree;
 		try {
-			domTree = GraphAlgorithms.findDominanceTree(flowGraph, Analyzer.tMonitor);
+			domTree = GraphAlgorithms.findDominanceTree(flowGraph, taskMonitor);
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new Error("Could not construct dominance tree");
@@ -59,18 +57,12 @@ public class LoopHandler {
 		for(PcodeBlockBasic vertex : CFG.getVertices()) {
 			for(PcodeBlockBasic child : CFG.getSuccessors(vertex)) {
 				try {
-					
-//					System.out.println("Finding dominators of child " + child);
-//					System.out.println("Goal vertex: " + vertex);
-//					for (PcodeBlockBasic dom : GraphAlgorithms.findDominance(domTree, child, Analyzer.tMonitor)) {
-//						System.out.println("Dominator: " + dom);
-//					}
-					
-					if(GraphAlgorithms.findDominance(domTree, child, Analyzer.tMonitor).contains(vertex)) {
-						System.out.println("Found back edge: " + vertex + " -> " + child);
+					if(GraphAlgorithms.findDominance(domTree, child, taskMonitor).contains(vertex)) {
 						// Child is also a dominator; loop detected
 						if (CFG.findEdge(vertex, child) != null) {
-							System.out.println("CONFIRMED back edge: " + vertex + " -> " + child);
+							if(VERBOSE_PRINT) {
+								System.out.println("Found back edge: " + vertex + " -> " + child);
+							}
 							backEdges.add(CFG.findEdge(vertex, child));
 						}
 					}
@@ -118,10 +110,14 @@ public class LoopHandler {
 			
 			// Construct CFG of loop body
 			GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG = GraphFactory.createDirectedGraph();
-			System.out.println("Loop body:");
+			if(VERBOSE_PRINT) {
+			    System.out.println("Loop body CFG:");
+			}
 			while(!loopBody.isEmpty()) {
 				PcodeBlockBasic vertex = loopBody.pop();
-				System.out.println(vertex);
+				if(VERBOSE_PRINT) {
+					System.out.println(vertex);
+				}
 				loopBodyCFG.addVertex(vertex);
 				if (!loopBody.isEmpty()) {
 					loopBodyCFG.addEdge(new DefaultGEdge<PcodeBlockBasic>(vertex, loopBody.peek()));

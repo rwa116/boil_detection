@@ -18,31 +18,21 @@ import ghidra.app.script.GhidraScript;
 import ghidra.graph.DefaultGEdge;
 import ghidra.graph.GDirectedGraph;
 import ghidra.graph.GEdge;
-import ghidra.program.model.address.*;
-import ghidra.program.model.symbol.*;
 import ghidra.util.task.TaskMonitor;
-import ghidra.program.flatapi.*;
-import ghidra.program.flatapi.FlatProgramAPI;
 import ghidra.program.model.listing.Function;
-import ghidra.program.model.listing.Instruction;
-import ghidra.program.model.listing.InstructionIterator;
 import ghidra.program.model.listing.Listing;
-import ghidra.program.model.listing.Parameter;
 import ghidra.program.model.pcode.HighFunction;
 import ghidra.program.model.pcode.PcodeBlockBasic;
-import ghidra.program.model.pcode.PcodeBlock;
 import ghidra.program.model.pcode.PcodeOp;
 import ghidra.program.model.pcode.PcodeOpAST;
 
 public class Analyzer extends GhidraScript{
-	public DecompInterface decomp;
+	private DecompInterface decomp;
 	
-	public static Listing Listing;
-	public static AddressFactory AddressFactory;
-	public static ReferenceManager ReferenceManager;
-	public static String ProgramName;
-	public static FlatProgramAPI FlatApi;
-	public static TaskMonitor tMonitor;
+	private static Listing listing;
+	private static TaskMonitor taskMonitor;
+	
+	private static final boolean VERBOSE_PRINT = true;
 	
 	private void decompilerSetup() {
 		decomp = new DecompInterface();
@@ -58,42 +48,42 @@ public class Analyzer extends GhidraScript{
 	}
 	
 	private void globalSetup() {
-		Listing = currentProgram.getListing();
-		AddressFactory = currentProgram.getAddressFactory();
-		ReferenceManager = currentProgram.getReferenceManager();
-		ProgramName = currentProgram.getName();
-		FlatApi = new FlatProgramAPI(currentProgram);
-		tMonitor = monitor;
+		listing = currentProgram.getListing();
+		taskMonitor = monitor;
 	}
 
 	@Override
 	protected void run() throws Exception {
+		long startTime = System.currentTimeMillis();
 		decompilerSetup();
 		globalSetup();
-		HashSet<Sink> discoveredSinks;
+		HashSet<Function> discoveredFunctions;
 		
-		FunctionHandler sinkHandler = new FunctionHandler();
-		LoopHandler loopHandler = new LoopHandler();
-		BoilDetector boilDetector = new BoilDetector();
+		FunctionHandler sinkHandler = new FunctionHandler(listing);
+		LoopHandler loopHandler = new LoopHandler(taskMonitor, VERBOSE_PRINT);
+		BoilDetector boilDetector = new BoilDetector(VERBOSE_PRINT);
 		
-		discoveredSinks = sinkHandler.findCalledFunctions();
+		discoveredFunctions = sinkHandler.findCalledFunctions();
 		
-		
-		System.out.println("Hello!");
-		
+				
 		int numBoils = 0;
 		int numLoops = 0;
 		Set<Function> bops = new HashSet<Function>();
 		
-		for(Sink dis : discoveredSinks) {
-			System.out.println("Discovered sink: " + dis.name);
-			
-			Function currentFunction = dis.functionRef;
-			HighFunction highFunction = decomp.decompileFunction(currentFunction, 300, monitor).getHighFunction();
-			Iterator<PcodeOpAST> pcodes = highFunction.getPcodeOps();
-			while(pcodes.hasNext()) {
-				System.out.println(pcodes.next());
+		for(Function func : discoveredFunctions) {
+			if(VERBOSE_PRINT) {
+				System.out.println("Discovered function: " + func.getName());
 			}
+			
+			Function currentFunction = func;
+			HighFunction highFunction = decomp.decompileFunction(currentFunction, 300, monitor).getHighFunction();
+			if (VERBOSE_PRINT) {
+				Iterator<PcodeOpAST> pcodes = highFunction.getPcodeOps();
+				while(pcodes.hasNext()) {
+					System.out.println(pcodes.next());
+				}
+			}
+			
 			
 			GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> CFG = loopHandler.generateCFG(highFunction);
 			GDirectedGraph<PcodeBlockBasic, GEdge<PcodeBlockBasic>> domTree = loopHandler.generateDominatorTree(CFG);
@@ -102,108 +92,62 @@ public class Analyzer extends GhidraScript{
 			List<GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>>> loopBodyCFGs = loopHandler.findLoopBodyCFGs(CFG, domTree, backEdges);
 			numLoops += loopBodyCFGs.size();
 			
-//			for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG : loopBodyCFGs) {
-//				for (PcodeBlockBasic v : loopBodyCFG.getVertices()) {
-//					System.out.println(" ");
-//					System.out.println(v);
-//					Iterator<PcodeOp> it = v.getIterator();
-//					while (it.hasNext()) {
-//						System.out.println(it.next());
-//					}
-//					System.out.println(" ");
-//				}
-//			}
-			
-			System.out.println("Loop body CFGs:");
-			for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG : loopBodyCFGs) {
-				System.out.println(" ");
-				System.out.println("Loop body CFG:");
-				PcodeBlockBasic entry = loopBodyCFG.getVertices().iterator().next();
-				while (loopBodyCFG.getInEdges(entry).size() != 0) {
-					entry = loopBodyCFG.getPredecessors(entry).iterator().next();
-				}
-				while(loopBodyCFG.getOutEdges(entry).size() > 0){
+			if(VERBOSE_PRINT) {
+				System.out.println("Loop body CFGs:");
+				for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG : loopBodyCFGs) {
+					System.out.println(" ");
+					System.out.println("Loop body CFG:");
+					PcodeBlockBasic entry = loopBodyCFG.getVertices().iterator().next();
+					while (loopBodyCFG.getInEdges(entry).size() != 0) {
+						entry = loopBodyCFG.getPredecessors(entry).iterator().next();
+					}
+					while(loopBodyCFG.getOutEdges(entry).size() > 0){
+						System.out.println("Block: " + entry);
+						Iterator<PcodeOp> it = entry.getIterator();
+						while (it.hasNext()) {
+							System.out.println(it.next());
+						}
+						entry = loopBodyCFG.getSuccessors(entry).iterator().next();
+					}
 					System.out.println("Block: " + entry);
 					Iterator<PcodeOp> it = entry.getIterator();
 					while (it.hasNext()) {
 						System.out.println(it.next());
 					}
-					entry = loopBodyCFG.getSuccessors(entry).iterator().next();
 				}
-				System.out.println("Block: " + entry);
-				Iterator<PcodeOp> it = entry.getIterator();
-				while (it.hasNext()) {
-					System.out.println(it.next());
-				}
-				
 			}
 			
+			// Find all loop body CFGs that contain a store
 			List<GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>>> potentialBoilCFGs = new ArrayList<>();
 			for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG : loopBodyCFGs) {
 				if (boilDetector.hasStore(loopBodyCFG)) {
-					System.out.println("Store detected in loop body");
 					potentialBoilCFGs.add(loopBodyCFG);
 				}
 			}
+			
+			// Check if each loop body CFG that contains a store is a BOIL
 			for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> potentialBoilCFG : potentialBoilCFGs) {
 				if (boilDetector.isBoil(potentialBoilCFG)) {
-					System.out.println("Boil detected");
+					System.out.println("Boil detected in " + currentFunction.getName());
 					numBoils++;
 					bops.add(currentFunction);
 				}
 			}
-			
-//			
-//			System.out.println("Dominance tree:");
-//			for(PcodeBlockBasic v : domTree.getVertices()) {
-//				System.out.println(" ");
-//				System.out.println(v);
-//				Iterator<PcodeOp> it = v.getIterator();
-//				while(it.hasNext()) {
-//					System.out.println(it.next());
-//				}
-//				System.out.println(" ");
-//			}
-//			
-//			System.out.println("CFG:");
-//			for (PcodeBlockBasic v : CFG.getVertices()) {
-//				System.out.println(" ");
-//				System.out.println(v);
-//				Iterator<PcodeOp> it = v.getIterator();
-//				while (it.hasNext()) {
-//					System.out.println(it.next());
-//				}
-//				System.out.println(" ");
-//			}
-//			
-//			if (backEdges.isEmpty()) {
-//				System.out.println("No back edges detected");
-//			}
-//			for (GEdge<PcodeBlockBasic> backEdge : backEdges) {
-//				System.out.println("Backedge detected: " + backEdge);
-//			}
-//			
-//			for (GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG : loopBodyCFGs) {
-//				System.out.println(" ");
-//				for (PcodeBlockBasic v : loopBodyCFG.getVertices()) {
-//					System.out.println(" ");
-//					System.out.println(v);println
-//					Iterator<PcodeOp> it = v.getIterator();
-//					while (it.hasNext()) {
-//						System.out.println(it.next());
-//					}
-//					System.out.println(" ");
-//				}
-//				System.out.println(" ");
-//			}
-//			break;
 		}
+		long endTime = System.currentTimeMillis();
+		long elapsedTime = endTime - startTime;
 		
-		System.out.println("Total loops detected: " + numLoops);
-		System.out.println("Total boils detected: " + numBoils);
+		 // Print out important statistics
+		System.out.println("Total LOOPs detected: " + numLoops);
+		System.out.println("Total BOILs detected: " + numBoils);
+		System.out.println("Percent of Loops that are BOILs: " + ((double)numBoils / numLoops) * 100 + "%");
+		System.out.println("Total Functions detected: " + discoveredFunctions.size());
+		System.out.println("Total BOP Functions detected: " + bops.size());
+		System.out.println("Percent of Functions that are BOPs: " + ((double)bops.size() / discoveredFunctions.size()) * 100 + "%");
 		for (Function f : bops) {
-			System.out.println("Bop: " + f.getName());
+			System.out.println("BOP function detected: " + f.getName());
 		}
+		System.out.println("Total time: " + elapsedTime + " ms");
 		
 	}
 
