@@ -39,4 +39,20 @@ class CircularList<T> {
 
         return items.get(currentIndex);
     }
+    
+	public void setIndex(T target) {
+		if (items.isEmpty()) {
+			throw new NoSuchElementException("List is empty");
+		}
+
+		for (int i = 0; i < items.size(); i++) {
+			if (items.get(i).equals(target)) {
+				currentIndex = i;
+				return;
+			}
+		}
+
+		throw new NoSuchElementException("Item not found");
+	}
+
 }

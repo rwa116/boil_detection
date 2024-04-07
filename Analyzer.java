@@ -32,7 +32,7 @@ public class Analyzer extends GhidraScript{
 	private static Listing listing;
 	private static TaskMonitor taskMonitor;
 	
-	private static final boolean VERBOSE_PRINT = true;
+	private static final boolean VERBOSE_PRINT = false;
 	
 	private void decompilerSetup() {
 		decomp = new DecompInterface();

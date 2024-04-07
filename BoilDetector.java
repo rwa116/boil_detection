@@ -33,20 +33,39 @@ public class BoilDetector {
 	}
 	
 	public Boolean isBoil(GDirectedGraph<PcodeBlockBasic, DefaultGEdge<PcodeBlockBasic>> loopBodyCFG) {
-		List<PcodeOp> instructions = new ArrayList<PcodeOp>();
+		List<PcodeOp> instList = new ArrayList<PcodeOp>();
 		Stack<PcodeOp> stores = new Stack<PcodeOp>();
 		int storeCount = 0;
-		for (PcodeBlockBasic block : loopBodyCFG.getVertices()) {
-			Iterator<PcodeOp> opIt = block.getIterator();
-			while (opIt.hasNext()) {
-				PcodeOp op = opIt.next();
+		
+		// Add all instructions in the loop body to a list
+		PcodeBlockBasic entry = loopBodyCFG.getVertices().iterator().next();
+		while (loopBodyCFG.getInEdges(entry).size() != 0) {
+			entry = loopBodyCFG.getPredecessors(entry).iterator().next();
+		}
+		while(loopBodyCFG.getOutEdges(entry).size() > 0){
+			Iterator<PcodeOp> it = entry.getIterator();
+			while (it.hasNext()) {
+				PcodeOp op = it.next();
 				if (op.getOpcode() == PcodeOp.STORE) {
 					stores.push(op);
 					storeCount++;
 				}
-				instructions.add(op);
+				instList.add(op);
 			}
+			entry = loopBodyCFG.getSuccessors(entry).iterator().next();
 		}
+		Iterator<PcodeOp> it = entry.getIterator();
+		while (it.hasNext()) {
+			PcodeOp op = it.next();
+			if (op.getOpcode() == PcodeOp.STORE) {
+				stores.push(op);
+				storeCount++;
+			}
+			instList.add(op);
+		}
+		
+		CircularList<PcodeOp> instructions = new CircularList<PcodeOp>(instList);
+		
 		if(VERBOSE_PRINT) {
 			System.out.println("Store count: " + storeCount);
 		}
@@ -57,18 +76,7 @@ public class BoilDetector {
 			if(VERBOSE_PRINT) {
 				System.out.println("Store: " + store + " memory offset: " + store.getInput(1));
 			}
-			pChain.add(store);
-			if (isSelfDependent(store.getInput(0), depChain, pChain, instructions)) {
-				if (VERBOSE_PRINT) {
-					System.out.println("Dependency chain: " + depChain);
-				}
-				System.out.println("Dependency pChain: ");
-				for (PcodeOp p : pChain) {
-					System.out.println(": " +  p);
-				}
-				return true;
-			}
-			if (isSelfDependent(store.getInput(1), depChain, pChain, instructions)) {
+			if (isSelfDependent(store, depChain, pChain, instructions)) {
 				if (VERBOSE_PRINT) {
 					System.out.println("Dependency chain: " + depChain);
 				}
@@ -85,64 +93,82 @@ public class BoilDetector {
 		return false;
 	}
 	
-	private Boolean isSelfDependent(Varnode v, List<Varnode> depChain, List<PcodeOp> pChain, List<PcodeOp> instructions) {
+	private Boolean isSelfDependent(PcodeOp currOp, List<Varnode> depChain, List<PcodeOp> pChain, CircularList<PcodeOp> instructions) {
 		if(VERBOSE_PRINT) {
-			System.out.println("Checking varnode: " + v + " depChain: " + depChain);
-			System.out.println("pCodeOp: " + v.getDef());
+			System.out.println("pCodeOp: " + currOp);
 		}
-		for (Varnode dv : depChain) {
-			if (dv.getSpace() == v.getSpace() && dv.getOffset() == v.getOffset()) {
-				if (VERBOSE_PRINT) {
-					System.out.println("Self dependent: " + v);
+		
+		pChain.add(currOp);
+		if (currOp.getOutput() != null) {
+			depChain.add(currOp.getOutput());
+		}
+		
+		// Find the inputs we are looking for
+    	Set<Varnode> seen = new HashSet<>();
+    	Set<Varnode> inputs = new HashSet<>();
+		switch(currOp.getOpcode()) {
+		case PcodeOp.STORE:
+			inputs.add(currOp.getInput(1));
+			break;
+		case PcodeOp.INDIRECT:
+		case PcodeOp.LOAD:
+		case PcodeOp.MULTIEQUAL:
+			depChain.remove(currOp.getOutput());
+			for (Varnode input : currOp.getInputs()) {
+				if(!seen.contains(input)) {
+					
+					// Check if the input is in the dependency chain
+					for (Varnode dv : depChain) {
+						if (dv.getSpace() == input.getSpace() && dv.getOffset() == input.getOffset()) {
+							if (VERBOSE_PRINT) {
+								System.out.println("Self dependent: " + input);
+							}
+							return true;
+						}
+					}
+					
+					inputs.add(input);
 				}
-				return true;
+				seen.add(input);
 			}
-		}
-		
-		depChain.add(v);
-		PcodeOp def = v.getDef();
-		pChain.add(def);
-	    if(def != null && instructions.contains(def)) {
-	    	Set<Varnode> seen = new HashSet<>();
-			switch(def.getOpcode()) {
-			case PcodeOp.STORE:
-				if (isSelfDependent(def.getInput(1), depChain, pChain, instructions)) {
-					return true;
-				}
-//				if (isSelfDependent(def.getInput(0), depChain, pChain, instructions)) {
-//					return true;
-//				}
-				break;
-			case PcodeOp.INDIRECT:
-			case PcodeOp.MULTIEQUAL:
-				depChain.remove(v);
-				for (Varnode input : def.getInputs()) {
-					if(!seen.contains(input)) {
-						if (isSelfDependent(input, depChain, pChain, instructions)) {
+			break;
+		default:
+			for (Varnode input : currOp.getInputs()) {
+				if(!seen.contains(input)) {
+					
+					// Check if the input is in the dependency chain
+					for (Varnode dv : depChain) {
+						if (dv.getSpace() == input.getSpace() && dv.getOffset() == input.getOffset()) {
+							if (VERBOSE_PRINT) {
+								System.out.println("Self dependent: " + input);
+							}
 							return true;
 						}
 					}
-					seen.add(input);
+					
+					inputs.add(input);
 				}
-				break;
-			default:
-				for (Varnode input : def.getInputs()) {
-					if(!seen.contains(input)) {
-						if (isSelfDependent(input, depChain, pChain, instructions)) {
-							return true;
-						}
-					}
-					seen.add(input);
-				}
-				break;
-            }
-        
-		}
-	    
-	    pChain.remove(def);
-	    depChain.remove(v);
-            
+				seen.add(input);
+			}
+			break;
+        }
 		
+		instructions.setIndex(currOp);
+		PcodeOp prevOp = instructions.previous();
+		while (prevOp != currOp) {
+			for (Varnode input : inputs) {
+				if (prevOp.getOutput() != null && prevOp.getOutput().getSpace() == input.getSpace()
+						&& prevOp.getOutput().getOffset() == input.getOffset()) {
+					if (isSelfDependent(prevOp, depChain, pChain, instructions)) {
+						return true;
+					}
+				}
+			}
+			prevOp = instructions.previous();
+		}
+		
+		depChain.remove(currOp.getOutput());
+		pChain.remove(currOp);
 		return false;
 	}
 
