@@ -76,7 +76,7 @@ public class BoilDetector {
 			if(VERBOSE_PRINT) {
 				System.out.println("Store: " + store + " memory offset: " + store.getInput(1));
 			}
-			if (isSelfDependent(store, depChain, pChain, instructions)) {
+			if (isSelfDependent(store, depChain, pChain, instructions, 0)) {
 				if (VERBOSE_PRINT) {
 					System.out.println("Dependency chain: " + depChain);
 				}
@@ -93,7 +93,10 @@ public class BoilDetector {
 		return false;
 	}
 	
-	private Boolean isSelfDependent(PcodeOp currOp, List<Varnode> depChain, List<PcodeOp> pChain, CircularList<PcodeOp> instructions) {
+	private Boolean isSelfDependent(PcodeOp currOp, List<Varnode> depChain, List<PcodeOp> pChain, CircularList<PcodeOp> instructions, int depth) {
+		if (depth > 20) {
+			return false;
+		}
 		if(VERBOSE_PRINT) {
 			System.out.println("pCodeOp: " + currOp);
 		}
@@ -111,7 +114,6 @@ public class BoilDetector {
 			inputs.add(currOp.getInput(1));
 			break;
 		case PcodeOp.INDIRECT:
-		case PcodeOp.LOAD:
 		case PcodeOp.MULTIEQUAL:
 			depChain.remove(currOp.getOutput());
 			for (Varnode input : currOp.getInputs()) {
@@ -119,7 +121,7 @@ public class BoilDetector {
 					
 					// Check if the input is in the dependency chain
 					for (Varnode dv : depChain) {
-						if (dv.getSpace() == input.getSpace() && dv.getOffset() == input.getOffset()) {
+						if (dv.equals(input)) {
 							if (VERBOSE_PRINT) {
 								System.out.println("Self dependent: " + input);
 							}
@@ -138,7 +140,7 @@ public class BoilDetector {
 					
 					// Check if the input is in the dependency chain
 					for (Varnode dv : depChain) {
-						if (dv.getSpace() == input.getSpace() && dv.getOffset() == input.getOffset()) {
+						if (dv.equals(input)) {
 							if (VERBOSE_PRINT) {
 								System.out.println("Self dependent: " + input);
 							}
@@ -157,9 +159,8 @@ public class BoilDetector {
 		PcodeOp prevOp = instructions.previous();
 		while (prevOp != currOp) {
 			for (Varnode input : inputs) {
-				if (prevOp.getOutput() != null && prevOp.getOutput().getSpace() == input.getSpace()
-						&& prevOp.getOutput().getOffset() == input.getOffset()) {
-					if (isSelfDependent(prevOp, depChain, pChain, instructions)) {
+				if (prevOp.getOutput() != null && prevOp.getOutput().equals(input)) {
+					if (isSelfDependent(prevOp, depChain, pChain, instructions, depth + 1)) {
 						return true;
 					}
 				}
