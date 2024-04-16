@@ -1,12 +1,6 @@
 package boil_detection_project;
 
 import java.util.ArrayList;
-
-/*
- * ./analyzeHeadless /home/ryan/code/cmpt_479/ ghidra_prac -process CWE121_Stack_Based_Buffer_Overflow__char_type_overrun_memcpy_01.out -postscript static_overflow_project.Analyzer
- */
-
-// ./analyzeHeadless /home/ryan/code/cmpt_479/ ghidra_prac -process strings -postscript overflow_package.Analyzer
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
